@@ -22,4 +22,15 @@ if (Test-Path ".\skills") {
     Write-Host "Copied all skills to ~/.agents/skills/" -ForegroundColor Green
 }
 
+# Install browser automation (playwright-cli + browsers) for UI/UX testing
+if (-not (Get-Command playwright-cli -ErrorAction SilentlyContinue)) {
+    Write-Host "Installing playwright-cli..." -ForegroundColor Yellow
+    & npm.cmd install -g @playwright/cli@latest
+    & npm.cmd install -g playwright
+} else {
+    Write-Host "playwright-cli already installed" -ForegroundColor Green
+}
+Write-Host "Installing playwright browsers..." -ForegroundColor Yellow
+& npm.cmd exec --yes playwright install
+
 Write-Host "`nDone! Just open opencode now." -ForegroundColor Cyan

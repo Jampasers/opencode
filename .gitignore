@@ -1,0 +1,10 @@
+node_modules/
+test-results/
+playwright-report/
+blob-report/
+.playwright/
+.playwright-cli/
+playwright/.cache/
+playwright/.auth/
+*.bak
+*.invalid

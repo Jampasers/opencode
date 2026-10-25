@@ -1,0 +1,25 @@
+
+{
+  "$schema": "https://opencode.ai/config.json",
+  "rm -rf *": "deny",
+  "permission": "allow",
+  "plugin": [
+    "@vheins/opencode-9router@0.9.1",
+    "@upstash/context7-opencode",
+    "@plannotator/opencode@0.28.27",
+    "superpowers@git+https://github.com/obra/superpowers.git"
+  ],
+  "provider": {
+    "9router-local": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "DankaStur 9Router",
+      "options": {
+        "baseURL": "https://ai.dankastur.com/v1",
+        "apiKey": "{env:ROUTER_API_KEY}",
+        "cache": true,
+        "discoveryTimeout": 60000
+      }
+    }
+  }
+}
+	

@@ -16,6 +16,17 @@ if (Test-Path ".\AGENTS.md") {
     Write-Host "Copied AGENTS.md" -ForegroundColor Green
 }
 
+# Copy TUI config (keybinds + mouse)
+if (Test-Path ".\tui.json") {
+    Copy-Item ".\tui.json" "$env:USERPROFILE\.config\opencode\" -Force
+    Write-Host "Copied tui.json" -ForegroundColor Green
+}
+
+# Set default editor for /editor and /export
+[Environment]::SetEnvironmentVariable("EDITOR", "notepad", "User")
+$env:EDITOR = "notepad"
+Write-Host "Set EDITOR=notepad" -ForegroundColor Green
+
 # Copy all skills
 if (Test-Path ".\skills") {
     Copy-Item ".\skills\*" "$env:USERPROFILE\.agents\skills\" -Recurse -Force

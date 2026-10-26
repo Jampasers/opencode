@@ -33,6 +33,20 @@ if (Test-Path ".\skills") {
     Write-Host "Copied all skills to ~/.agents/skills/" -ForegroundColor Green
 }
 
+# Copy agents (e.g. codebase-memory Scout/Verify/Auditor)
+if (Test-Path ".\agents") {
+    New-Item -ItemType Directory -Force -Path "$env:USERPROFILE\.config\opencode\agents" | Out-Null
+    Copy-Item ".\agents\*" "$env:USERPROFILE\.config\opencode\agents\" -Recurse -Force
+    Write-Host "Copied agents to ~/.config/opencode/agents/" -ForegroundColor Green
+}
+
+# Copy plugins (e.g. codebase-memory graph augmentation)
+if (Test-Path ".\plugins") {
+    New-Item -ItemType Directory -Force -Path "$env:USERPROFILE\.config\opencode\plugins" | Out-Null
+    Copy-Item ".\plugins\*" "$env:USERPROFILE\.config\opencode\plugins\" -Recurse -Force
+    Write-Host "Copied plugins to ~/.config/opencode/plugins/" -ForegroundColor Green
+}
+
 # Install browser automation (playwright-cli + browsers) for UI/UX testing
 if (-not (Get-Command playwright-cli -ErrorAction SilentlyContinue)) {
     Write-Host "Installing playwright-cli..." -ForegroundColor Yellow

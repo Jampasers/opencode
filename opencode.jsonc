@@ -46,6 +46,18 @@
       "type": "local",
       "command": ["cmd", "/c", "npx", "-y", "@playwright/mcp@0.0.83", "--headless"],
       "enabled": true
+    },
+    "codebase-memory-mcp": {
+      "type": "local",
+      "command": [
+        "C:/Users/andri/AppData/Local/Programs/codebase-memory-mcp/codebase-memory-mcp.exe"
+      ],
+      "enabled": true
+    },
+    "firecrawl": {
+      "type": "remote",
+      "url": "https://mcp.firecrawl.dev/v2/mcp",
+      "enabled": true
     }
   }
 }

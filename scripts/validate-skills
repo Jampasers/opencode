@@ -1,0 +1,103 @@
+#!/usr/bin/env python3
+"""Validator kontrak skills & agents KTI — port Python dari validator node.
+
+Memeriksa frontmatter skills/agents (nama, deskripsi, keyword, mode,
+permission, aturan open access) di repo ini. Exit 0 bila semua valid,
+exit 1 dengan daftar pelanggaran.
+"""
+import re
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+
+SKILLS = ['academic-writing', 'academic-research', 'academic-review']
+AGENTS = [
+    {'file': 'academic-researcher.md', 'edit': 'deny'},
+    {'file': 'academic-writer.md', 'edit': 'allow'},
+    {'file': 'academic-reviewer.md', 'edit': 'deny'},
+]
+
+failures = []
+
+
+def check(ok, msg):
+    if not ok:
+        failures.append(msg)
+
+
+def read_text(path):
+    with open(path, encoding='utf-8', errors='replace', newline='') as fh:
+        return fh.read()
+
+
+def js_len(s):
+    # JS String#length menghitung unit UTF-16, bukan code point.
+    return len(s.encode('utf-16-le')) // 2
+
+
+def frontmatter(text):
+    m = re.match(r'^---\r?\n([\s\S]*?)\r?\n---', text)
+    return m.group(1) if m else None
+
+
+def field(fm, key):
+    m = re.search(r'^\s*' + re.escape(key) + r':\s*(.+)$', fm, re.M)
+    return m.group(1).strip() if m else None
+
+
+def main():
+    for name in SKILLS:
+        path = ROOT / 'skills' / name / 'SKILL.md'
+        check(path.is_file(), f'skills/{name}/SKILL.md: file tidak ada')
+        if not path.is_file():
+            continue
+        text = read_text(path)
+        fm = frontmatter(text)
+        check(fm is not None, f'skills/{name}/SKILL.md: frontmatter --- tidak ditemukan')
+        if not fm:
+            continue
+        check(field(fm, 'name') == name, f'skills/{name}/SKILL.md: name harus "{name}"')
+        desc = field(fm, 'description') or ''
+        n = js_len(desc)
+        check(40 <= n <= 1024, f'skills/{name}/SKILL.md: description 40-1024 char (sekarang {n})')
+        check('makalah' in desc, f'skills/{name}/SKILL.md: description harus memuat keyword "makalah"')
+        if name in ('academic-research', 'academic-writing'):
+            check('daftar pustaka' in desc, f'skills/{name}/SKILL.md: description harus memuat keyword "daftar pustaka"')
+        if name == 'academic-research':
+            check(re.search(r'open[- ]access', text, re.I) is not None, 'skills/academic-research/SKILL.md: body harus memuat aturan "open access"')
+            check('OpenAlex' in text, 'skills/academic-research/SKILL.md: body harus memuat OpenAlex')
+
+    for spec in AGENTS:
+        path = ROOT / 'agents' / spec['file']
+        check(path.is_file(), f"agents/{spec['file']}: file tidak ada")
+        if not path.is_file():
+            continue
+        text = read_text(path)
+        fm = frontmatter(text)
+        check(fm is not None, f"agents/{spec['file']}: frontmatter --- tidak ditemukan")
+        if not fm:
+            continue
+        desc = field(fm, 'description') or ''
+        check(js_len(desc) >= 40, f"agents/{spec['file']}: description minimal 40 char")
+        check(field(fm, 'mode') == 'subagent', f"agents/{spec['file']}: mode harus \"subagent\"")
+        check(field(fm, 'edit') == spec['edit'], f"agents/{spec['file']}: permission edit harus \"{spec['edit']}\"")
+        if spec['file'] == 'academic-researcher.md':
+            check(re.search(r'open[- ]access', text, re.I) is not None, f"agents/{spec['file']}: body harus memuat aturan \"open access\"")
+
+    if failures:
+        print(f'GAGAL ({len(failures)}):', file=sys.stderr)
+        for f in failures:
+            print(' - ' + f, file=sys.stderr)
+        return 1
+    print(f'OK: {len(SKILLS)} skills, {len(AGENTS)} agents valid')
+    return 0
+
+
+if __name__ == '__main__':
+    try:
+        sys.stdout.reconfigure(newline='\n')
+        sys.stderr.reconfigure(newline='\n')
+    except Exception:
+        pass
+    sys.exit(main())

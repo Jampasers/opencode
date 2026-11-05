@@ -1,11 +1,11 @@
 ﻿{
   "$schema": "https://opencode.ai/config.json",
-  "model": "guwehj",
+  "model": "9router-local/guwehj",
   "plugin": [
     "@vheins/opencode-9router@0.9.1",
-    "@upstash/context7-opencode",
+    "@upstash/context7-opencode@0.2.1",
     "@plannotator/opencode@0.28.30",
-    "superpowers@git+https://github.com/obra/superpowers.git"
+    "superpowers@git+https://github.com/obra/superpowers.git#2ce8aa15d05bd57213e6f746f953aafb7ded7a8b"
   ],
   "provider": {
     "9router-local": {
@@ -49,9 +49,9 @@
     },
     "codebase-memory-mcp": {
       "type": "local",
-      "command": [
-        "C:/Users/andri/AppData/Local/Programs/codebase-memory-mcp/codebase-memory-mcp.exe"
-      ],
+      // Portabel: shim npm global dari scripts/setup.ps1; cmd /c agar .cmd
+      // shim ke-resolve di Windows. Versi dipin di setup (codebase-memory-mcp@0.12.1).
+      "command": ["cmd", "/c", "codebase-memory-mcp"],
       "enabled": true
     },
     "firecrawl": {

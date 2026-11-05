@@ -11,11 +11,15 @@
 // after compaction via the documented experimental surface.
 import { spawn } from 'node:child_process';
 
-const BIN = 'C:/Users/andri/AppData/Local/Programs/codebase-memory-mcp/codebase-memory-mcp.exe';
+// Portabel: resolve CLI dari PATH (npm global, dipasang scripts/setup.ps1).
+// shell:true di Windows agar shim .cmd npm ikut ke-resolve.
+// CBM_BIN boleh di-override untuk pengujian.
+const BIN = process.env.CBM_BIN || 'codebase-memory-mcp';
 
 function augment(payload) {
   return new Promise((resolve) => {
     const child = spawn(BIN, ['hook-augment'], {
+      shell: process.platform === 'win32',
       stdio: ['pipe', 'pipe', 'ignore'],
       env: { ...process.env, CBM_LOG_LEVEL: 'error' },
     });

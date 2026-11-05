@@ -4,7 +4,17 @@ playwright-report/
 blob-report/
 .playwright/
 .playwright-cli/
+.playwright-mcp/
 playwright/.cache/
 playwright/.auth/
 *.bak
 *.invalid
+npm-debug.log*
+yarn-error.log*
+
+# Secrets and machine-local data are never committed.
+.env
+.env.*
+*.env
+secrets/
+*.pem

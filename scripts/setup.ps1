@@ -36,10 +36,16 @@ function Ok   ([string]$Msg) { Say "    [ok]   $Msg" Green;  [void]$Summary.Veri
 function Warn ([string]$Msg) { Say "    [warn] $Msg" Yellow; [void]$Summary.Warnings.Add($Msg) }
 function Plan ([string]$Msg) { Say "    [plan] $Msg" Magenta }
 
+function Pause-If-Interactive {
+    if ($env:OPENCODE_SETUP_FROM_CMD) { return }      # setup.cmd pauses itself
+    if ([Console]::IsInputRedirected) { return }      # automated / piped run
+    Read-Host "`nPress Enter to close" | Out-Null
+}
+
 trap {
     Say ""
     Say "SETUP FAILED: $($_.Exception.Message)" Red
-    if (-not [Console]::IsInputRedirected) { Read-Host "Press Enter to close" | Out-Null }
+    Pause-If-Interactive
     exit 1
 }
 
@@ -376,6 +382,6 @@ Say "Not verified by setup: MCP servers start and npm plugins download on the" D
 Say "first opencode launch (network required). ROUTER_API_KEY is user-supplied." DarkGray
 if ($DryRun) { Say ""; Say "Dry run only. Re-run without -DryRun to apply." Magenta }
 
-if (-not [Console]::IsInputRedirected) { Read-Host "`nPress Enter to close" | Out-Null }
+Pause-If-Interactive
 
 exit 0

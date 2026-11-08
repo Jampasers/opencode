@@ -1,4 +1,4 @@
-#Requires -Version 5.1
+﻿#Requires -Version 5.1
 # OpenCode portable setup for Windows (PowerShell 5.1).
 # Reproduces the environment defined by this repository:
 #   .\scripts\setup.ps1           install / refresh (idempotent, safe to re-run)
@@ -18,6 +18,7 @@ $OpencodePinned      = '1.19.5'
 $CbmPinned           = '0.12.1'
 $PlaywrightCliPinned = '0.1.22'
 $PlaywrightPinned    = '1.64.1'
+$PnpmPinned          = '12.18.0'   # preferred package manager per AGENTS.md
 
 $RepoRoot  = Split-Path -Parent $PSScriptRoot
 $ConfigDir = Join-Path $env:USERPROFILE '.config\opencode'
@@ -162,6 +163,81 @@ $npm = Get-CmdPath 'npm.cmd'
 if (-not $npm) { throw "npm.cmd was not found even after Node setup. Install Node.js LTS from https://nodejs.org, open a NEW terminal, then re-run setup." }
 Ok "npm $((& $npm --version).Trim())"
 
+# --- pnpm -------------------------------------------------------------------
+# npm's generated Windows shim for pnpm calls the extensionless native
+# launcher, which cmd.exe cannot run. Point the shims at bin\pnpm.mjs (the
+# documented fallback launcher) instead. Idempotent; re-run after any
+# `npm install -g pnpm` because npm regenerates the broken shim.
+function Repair-PnpmShim {
+    $npmBin   = Join-Path $env:APPDATA 'npm'
+    $cmdShim  = Join-Path $npmBin 'pnpm.cmd'
+    $ps1Shim  = Join-Path $npmBin 'pnpm.ps1'
+    if (Test-Path -LiteralPath $cmdShim) {
+        $text = Get-Content -LiteralPath $cmdShim -Raw
+        $fixed = [regex]::Replace($text, '("%dp0%\\node_modules\\pnpm\\pnpm"\s+%\*)', 'node "%dp0%\node_modules\pnpm\bin\pnpm.mjs" %*')
+        if ($fixed -ne $text) { [IO.File]::WriteAllText($cmdShim, $fixed) }
+    }
+    if (Test-Path -LiteralPath $ps1Shim) {
+        $text = Get-Content -LiteralPath $ps1Shim -Raw
+        $fixed = [regex]::Replace($text, '"(\$basedir/node_modules/pnpm/pnpm)"', '& node "$basedir/node_modules/pnpm/bin/pnpm.mjs"')
+        if ($fixed -ne $text) { [IO.File]::WriteAllText($ps1Shim, $fixed) }
+    }
+}
+
+Step "Checking pnpm ($PnpmPinned)"
+$pnpmCmd = Get-CmdPath 'pnpm.cmd'
+$currentPnpm = ''
+if ($pnpmCmd) { $currentPnpm = (& $pnpmCmd --version 2>$null | Select-Object -First 1).Trim() }
+if ($currentPnpm -eq $PnpmPinned) {
+    Ok "pnpm $currentPnpm already installed"
+}
+else {
+    if ($currentPnpm) { Warn "pnpm $currentPnpm found; installing pinned $PnpmPinned" }
+    else { Warn "pnpm not found; installing pinned $PnpmPinned" }
+    if ($DryRun) { Plan "npm install -g pnpm@$PnpmPinned + repair the npm-generated cmd shim" }
+    else {
+        & $npm install -g "pnpm@$PnpmPinned" --no-audit --no-fund --allow-scripts=pnpm
+        if ($LASTEXITCODE -ne 0) { throw "pnpm install failed (exit $LASTEXITCODE)" }
+        Repair-PnpmShim
+        $pnpmCmd = Get-CmdPath 'pnpm.cmd'
+        $currentPnpm = ''
+        if ($pnpmCmd) { $currentPnpm = (& $pnpmCmd --version 2>$null | Select-Object -First 1).Trim() }
+        if ($currentPnpm) { Ok "pnpm $currentPnpm installed (shim repaired)" }
+        else { throw "pnpm installed but its shim still fails; open a NEW terminal and run: pnpm --version" }
+    }
+}
+if (-not $DryRun -and $currentPnpm -eq $PnpmPinned) { Repair-PnpmShim }
+
+# --- GitHub CLI -------------------------------------------------------------
+Step "Checking GitHub CLI"
+$ghCmd = Get-CmdPath 'gh.exe'
+if ($ghCmd) {
+    Ok "gh $(((& $ghCmd --version) | Select-Object -First 1) -replace '^gh version ', '')"
+    $null = & $ghCmd auth status 2>&1
+    if ($LASTEXITCODE -eq 0) { Ok "gh is authenticated" }
+    else {
+        Warn "gh is not authenticated"
+        [void]$Summary.Next.Add('gh auth login   (sign in to GitHub)')
+    }
+}
+else {
+    $winget = Get-CmdPath 'winget.exe'
+    if ($DryRun) { Plan "install GitHub CLI (winget install --id GitHub.cli)" }
+    elseif ($winget) {
+        & $winget install --id GitHub.cli -e --source winget --accept-package-agreements --accept-source-agreements --silent
+        if ($LASTEXITCODE -ne 0) {
+            Warn "winget install GitHub.cli failed (exit $LASTEXITCODE); install manually: https://cli.github.com"
+        }
+        else {
+            Ok "GitHub CLI installed (open a NEW terminal for PATH)"
+            [void]$Summary.Next.Add('gh auth login   (sign in to GitHub)')
+        }
+    }
+    else {
+        Warn "GitHub CLI not found and winget is unavailable; install manually: https://cli.github.com"
+    }
+}
+
 # --- Config preparation -----------------------------------------------------
 Step "Preparing OpenCode config in $ConfigDir"
 $requiredFiles  = @('opencode.jsonc', 'tui.json', 'AGENTS.md', 'package.json', 'package-lock.json')
@@ -243,25 +319,41 @@ if ($currentOpencode -eq $OpencodePinned) {
 else {
     if ($currentOpencode) { Warn "opencode $currentOpencode found; installing pinned $OpencodePinned" }
     else { Warn "opencode not found; installing pinned $OpencodePinned" }
-    if ($DryRun) { Plan "npm install -g opencode-ai@$OpencodePinned" }
+    if ($DryRun) { Plan "npm install -g opencode-ai@$OpencodePinned (with npm allow-scripts)" }
     else {
-        & $npm install -g "opencode-ai@$OpencodePinned" --no-audit --no-fund
+        # Newer npm blocks lifecycle scripts by default; opencode-ai's postinstall
+        # is what places a runnable binary. Without it the CLI ships broken.
+        & $npm install -g "opencode-ai@$OpencodePinned" --no-audit --no-fund --allow-scripts=opencode-ai
         if ($LASTEXITCODE -ne 0) { throw "opencode-ai install failed (exit $LASTEXITCODE)" }
         Ok "opencode-ai $OpencodePinned installed"
     }
 }
 
-# --- codebase-memory-mcp (MCP server, installed portably via npm) -----------
+# --- codebase-memory-mcp (MCP server; npm CLI or portable exe on PATH) -------
 Step "Checking codebase-memory-mcp ($CbmPinned)"
-$cbmCmd = Get-CmdPath 'codebase-memory-mcp.cmd'
-$currentCbm = ''
-if ($cbmCmd) { $currentCbm = ((& $cbmCmd --version | Select-Object -First 1) -split '\s+')[-1] }
-if ($currentCbm -eq $CbmPinned) {
-    if ($DryRun) { Plan "verify native runtime of codebase-memory-mcp $CbmPinned" }
-    else {
-        & $cbmCmd --version | Out-Null
-        if ($LASTEXITCODE -ne 0) { throw "codebase-memory-mcp runtime check failed (exit $LASTEXITCODE)" }
+# Accept any of the three shapes recent install methods produce: the npm
+# global .cmd shim, the portable .exe, or a bare executable on PATH.
+# A candidate only counts when `--version` exits 0 with a clean semver: a
+# stub whose postinstall/postrun was blocked stays silent or fails, and must
+# not be picked over a working portable install.
+function Get-CbmOnPath {
+    foreach ($name in @('codebase-memory-mcp.cmd', 'codebase-memory-mcp.exe')) {
+        $c = Get-CmdPath $name
+        if (-not $c) { continue }
+        # No pipeline on the native call: Select-Object -First 1 can terminate
+        # it early and corrupt $LASTEXITCODE (observed as -1).
+        $out = [string](& cmd /c "`"$c`" --version 2>nul")
+        $first = @($out -split "`n")[0]
+        if ($LASTEXITCODE -eq 0 -and ($first -match '(\d+\.\d+\.\d+)\s*$')) {
+            return @{ Cmd = $c; Version = $Matches[1] }
+        }
     }
+    return $null
+}
+$cbm = Get-CbmOnPath
+$cbmCmd = if ($cbm) { $cbm.Cmd } else { $null }
+$currentCbm = if ($cbm) { $cbm.Version } else { '' }
+if ($currentCbm -eq $CbmPinned) {
     Ok "codebase-memory-mcp $currentCbm already installed"
 }
 else {
@@ -269,13 +361,13 @@ else {
     else { Warn "codebase-memory-mcp not found; installing pinned $CbmPinned" }
     if ($DryRun) { Plan "npm install -g codebase-memory-mcp@$CbmPinned + one-time native runtime download" }
     else {
-        & $npm install -g "codebase-memory-mcp@$CbmPinned" --no-audit --no-fund
+        & $npm install -g "codebase-memory-mcp@$CbmPinned" --no-audit --no-fund --allow-scripts=codebase-memory-mcp
         if ($LASTEXITCODE -ne 0) { throw "codebase-memory-mcp install failed (exit $LASTEXITCODE)" }
-        $cbmCmd = Get-CmdPath 'codebase-memory-mcp.cmd'
-        if (-not $cbmCmd) { throw "codebase-memory-mcp installed but not found on PATH; open a NEW terminal and re-run setup." }
-        & $cbmCmd --version | Out-Null
-        if ($LASTEXITCODE -ne 0) { throw "codebase-memory-mcp first run failed (exit $LASTEXITCODE)" }
-        Ok "codebase-memory-mcp $CbmPinned installed (native runtime ready)"
+        $cbm = Get-CbmOnPath
+        if (-not $cbm) { throw "codebase-memory-mcp installed but not found/working on PATH; open a NEW terminal and re-run setup." }
+        $cbmCmd = $cbm.Cmd
+        $currentCbm = $cbm.Version
+        Ok "codebase-memory-mcp $currentCbm installed (native runtime ready)"
     }
 }
 
@@ -286,7 +378,7 @@ if ($pwCliCmd) { Ok "playwright-cli present" }
 else {
     if ($DryRun) { Plan "npm install -g @playwright/cli@$PlaywrightCliPinned" }
     else {
-        & $npm install -g "@playwright/cli@$PlaywrightCliPinned" --no-audit --no-fund
+        & $npm install -g "@playwright/cli@$PlaywrightCliPinned" --no-audit --no-fund --allow-scripts=@playwright/cli
         if ($LASTEXITCODE -ne 0) { throw "@playwright/cli install failed (exit $LASTEXITCODE)" }
         Ok "@playwright/cli $PlaywrightCliPinned installed"
     }
@@ -296,7 +388,7 @@ if ($pwCmd) { Ok "playwright CLI present" }
 else {
     if ($DryRun) { Plan "npm install -g playwright@$PlaywrightPinned" }
     else {
-        & $npm install -g "playwright@$PlaywrightPinned" --no-audit --no-fund
+        & $npm install -g "playwright@$PlaywrightPinned" --no-audit --no-fund --allow-scripts=playwright
         if ($LASTEXITCODE -ne 0) { throw "playwright install failed (exit $LASTEXITCODE)" }
         $pwCmd = Get-CmdPath 'playwright.cmd'
         Ok "playwright $PlaywrightPinned installed"

@@ -43,7 +43,13 @@ No admin rights are required. Everything installs per-user.
    missing/incompatible, with SHA-256 verification of the official archive).
 2. Installs pinned tooling globally via npm:
    `opencode-ai@1.19.5`, `codebase-memory-mcp@0.12.1`,
-   `@playwright/cli@0.1.22`, `playwright@1.64.1` (+ browser binaries).
+   `@playwright/cli@0.1.22`, `playwright@1.64.1` (+ browser binaries),
+   and `pnpm@12.18.0` (npm's generated Windows shim for pnpm is broken —
+   setup points it at `bin\pnpm.mjs`, idempotently, on every run).
+   `--allow-scripts` is passed for packages whose postinstall is required
+   (`opencode-ai`, `codebase-memory-mcp`, `pnpm`, `playwright`), because newer
+   npm blocks lifecycle scripts by default — a blocked `opencode-ai`
+   postinstall ships a CLI that refuses to start.
 3. Copies this repository's configuration into `%USERPROFILE%\.config\opencode`
    (`opencode.jsonc`, `tui.json`, `AGENTS.md`, `agents/`, `plugins/`,
    `package.json`, `package-lock.json`) and all skills into
@@ -54,6 +60,8 @@ No admin rights are required. Everything installs per-user.
 6. Validates: required files, JSON/JSONC parse, agents present, plugin present,
    and no machine-specific absolute paths.
 7. Checks `ROUTER_API_KEY` and prints next steps.
+8. Checks the GitHub CLI: installs it via winget when missing and reports
+   whether you are signed in (`gh auth login`).
 
 The repository root mirrors OpenCode's native global config directory
 (`~/.config/opencode`), so setup is a 1:1 sync and OpenCode works from **any**
@@ -115,6 +123,7 @@ agents/               academic-researcher/-reviewer/-writer, codebase-memory*
 plugins/              cbm-augment.ts (local plugin)
 skills/               shared skill library (installed to ~/.agents/skills)
 scripts/setup.ps1     the bootstrap script
+scripts/sync.ps1      pull live edits back into the repo (live -> repo)
 setup.ps1 / setup.cmd backward-compatible entry points (setup.cmd is double-click friendly)
 package.json          @opencode-ai/plugin 1.19.5 (+ @playwright/test for repo CI)
 package-lock.json     deterministic dependency lock
@@ -130,6 +139,23 @@ git pull
 
 Restart OpenCode if it was running. Config is loaded at startup only.
 
+## Syncing live edits back into the repo
+
+`setup.ps1` goes repo -> live. Edits you make directly in the live directories
+(new skills under `~/.agents/skills`, agent tweaks, `opencode.jsonc` changes)
+are pulled back with:
+
+```powershell
+.\scripts\sync.ps1 -DryRun   # report new/changed files
+.\scripts\sync.ps1           # copy live -> repo
+git add -A
+git commit -m "sync: ..."
+git push
+```
+
+One-way (live -> repo); it never deletes repo-only files. Remove those
+manually if they were intentionally dropped from the live setup.
+
 ## Troubleshooting
 
 - **ExecutionPolicy blocks the script** — use
@@ -144,6 +170,15 @@ Restart OpenCode if it was running. Config is loaded at startup only.
   codebase-memory native runtime on first use; keep the network on.
 - **Playwright browser missing** — run `playwright install` (setup does this
   already; already-present browsers are skipped).
+- **`pnpm` installed but "not recognized"** — npm generates a broken Windows
+  shim for pnpm. Re-run `.\scripts\setup.ps1`; it repairs the shim (points it at
+  `node_modules\pnpm\bin\pnpm.mjs`). Re-run it after any `npm i -g pnpm`.
+- **`opencode` suddenly says "not compatible with the version of Windows"** —
+  a previous npm update blocked the package's postinstall script (newer npm
+  blocks lifecycle scripts by default). Repair with
+  `npm install -g opencode-ai@1.19.5 --allow-scripts=opencode-ai` (close any
+  running OpenCode first — the binary file is locked while in use), or just
+  re-run setup.
 - **Antivirus flags codebase-memory-mcp** — known upstream false positive
   (61/62 engines clean, per its README).
 
@@ -155,7 +190,7 @@ Remove-Item "$env:USERPROFILE\.config\opencode" -Recurse -Force
 Remove-Item "$env:USERPROFILE\.agents\skills" -Recurse -Force
 
 # global tooling
-npm uninstall -g opencode-ai codebase-memory-mcp @playwright/cli playwright
+npm uninstall -g opencode-ai codebase-memory-mcp @playwright/cli playwright pnpm
 ```
 
 Graph indexes kept by codebase-memory-mcp live in

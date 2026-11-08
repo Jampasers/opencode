@@ -60,8 +60,9 @@ No admin rights are required. Everything installs per-user.
 6. Validates: required files, JSON/JSONC parse, agents present, plugin present,
    and no machine-specific absolute paths.
 7. Checks `ROUTER_API_KEY` and prints next steps.
-8. Checks the GitHub CLI: installs it via winget when missing and reports
-   whether you are signed in (`gh auth login`).
+8. Checks the GitHub CLI and installs it via winget when missing. Signing in
+   (`gh auth login`) is per-machine and deliberately left to you — setup never
+   checks or touches authentication.
 
 The repository root mirrors OpenCode's native global config directory
 (`~/.config/opencode`), so setup is a 1:1 sync and OpenCode works from **any**

@@ -209,16 +209,12 @@ else {
 if (-not $DryRun -and $currentPnpm -eq $PnpmPinned) { Repair-PnpmShim }
 
 # --- GitHub CLI -------------------------------------------------------------
+# Tooling only. Authentication is deliberately NOT checked or touched here:
+# each machine signs in for itself (gh auth login) when it needs to.
 Step "Checking GitHub CLI"
 $ghCmd = Get-CmdPath 'gh.exe'
 if ($ghCmd) {
     Ok "gh $(((& $ghCmd --version) | Select-Object -First 1) -replace '^gh version ', '')"
-    $null = & $ghCmd auth status 2>&1
-    if ($LASTEXITCODE -eq 0) { Ok "gh is authenticated" }
-    else {
-        Warn "gh is not authenticated"
-        [void]$Summary.Next.Add('gh auth login   (sign in to GitHub)')
-    }
 }
 else {
     $winget = Get-CmdPath 'winget.exe'
@@ -230,7 +226,6 @@ else {
         }
         else {
             Ok "GitHub CLI installed (open a NEW terminal for PATH)"
-            [void]$Summary.Next.Add('gh auth login   (sign in to GitHub)')
         }
     }
     else {

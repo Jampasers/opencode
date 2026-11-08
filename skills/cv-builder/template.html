@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<title>{{NAMA}} — {{POSISI}}</title>
+<style>
+  @page { size: A4; margin: 14mm 16mm; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: "Segoe UI", Calibri, Arial, sans-serif;
+    color: #23303c; font-size: 10.2pt; line-height: 1.45;
+    -webkit-print-color-adjust: exact; print-color-adjust: exact;
+  }
+  .page { max-width: 210mm; margin: 0 auto; }
+  @media screen {
+    body { background: #e8ebee; padding: 24px 12px; }
+    .page { background: #fff; padding: 14mm 16mm; box-shadow: 0 2px 14px rgba(0,0,0,.14); }
+  }
+  header { border-bottom: 2.5px solid #14304f; padding-bottom: 8px; margin-bottom: 14px; }
+  h1 { margin: 0; font-size: 23pt; font-weight: 700; letter-spacing: .6px; color: #14304f; }
+  .role { margin-top: 3px; font-size: 11pt; font-weight: 600; letter-spacing: .4px; color: #14304f; }
+  .contact { margin-top: 7px; font-size: 8.9pt; color: #55636e; }
+  .ph { color: #b00020; font-weight: 600; }
+  h2 {
+    margin: 14px 0 7px; padding-bottom: 3px;
+    font-size: 10pt; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px;
+    color: #14304f; border-bottom: 1px solid #ccd4dc;
+    break-after: avoid; page-break-after: avoid;
+  }
+  p { margin: 0; }
+  .entry { margin-bottom: 10px; break-inside: avoid; page-break-inside: avoid; }
+  .entry:last-child { margin-bottom: 0; }
+  .entry-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+  .entry-title { font-weight: 700; color: #101820; }
+  .entry-sep { color: #8a949c; font-weight: 400; }
+  .entry-date { font-size: 8.9pt; color: #55636e; white-space: nowrap; }
+  .entry-sub { font-size: 9.4pt; color: #3a4750; margin-top: 1px; }
+  ul { margin: 3px 0 0; padding-left: 16px; }
+  li { margin-bottom: 2.5px; }
+  .skills { margin: 0; padding-left: 0; list-style: none; }
+  .skills li { margin-bottom: 3.5px; }
+  .skills b { color: #101820; }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <header>
+    <h1>{{NAMA UPPERCASE}}</h1>
+    <div class="role">{{Target Posisi}}</div>
+    <div class="contact">{{Kota}} &nbsp;·&nbsp; <span class="ph">[ISI: email]</span> &nbsp;·&nbsp; <span class="ph">[ISI: no. HP]</span> &nbsp;·&nbsp; <span class="ph">[ISI: LinkedIn/GitHub]</span></div>
+  </header>
+
+  <h2>Ringkasan</h2>
+  <p>Maksimal 3 kalimat: siapa, pengalaman inti dengan angka, dan kontribusi
+    yang ditawarkan untuk posisi target. Tanpa kata sifat kosong.</p>
+
+  <h2>Pengalaman</h2>
+
+  <div class="entry">
+    <div class="entry-head">
+      <div><span class="entry-title">Posisi</span> <span class="entry-sep">—</span> Perusahaan/Institusi</div>
+      <div class="entry-date">Bln YYYY – Bln YYYY</div>
+    </div>
+    <ul>
+      <li>Kata kerja + objek konkret + hasil terukur (angka hanya dari user).</li>
+    </ul>
+  </div>
+
+  <h2>Pendidikan</h2>
+
+  <div class="entry">
+    <div class="entry-head">
+      <div><span class="entry-title">S1 {{Jurusan}}</span> <span class="entry-sep">—</span> {{Universitas}}</div>
+      <div class="entry-date">Lulus YYYY</div>
+    </div>
+    <div class="entry-sub">IPK x,xx/4,00</div>
+  </div>
+
+  <h2>Keahlian</h2>
+  <ul class="skills">
+    <li><b>Bahasa Pemrograman:</b> ...</li>
+    <li><b>Alat &amp; Praktik:</b> ...</li>
+    <li><b>Bahasa:</b> Indonesia, Inggris (...)</li>
+  </ul>
+
+</div>
+</body>
+</html>

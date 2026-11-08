@@ -65,9 +65,18 @@ Aturan mutlak: **tidak ada referensi karangan**. Referensi hanya dari hasil
 
 ## 5. Ekspor DOCX/PDF (pandoc)
 
+**Gaya visual default = polos total.** Times New Roman 12pt, spasi 1,5, teks
+hitam (tanpa biru/aksen warna), heading hitam bold. Jangan pernah pakai style
+default pandoc/Word apa adanya. Warna, font dekoratif, atau tema khusus hanya
+kalau user minta eksplisit — dan tanyakan dulu detailnya.
+
 ```bash
-# Markdown -> DOCX (pakai template kampus bila ada)
+# Markdown -> DOCX. Prioritas: template kampus > reference-polos (bawaan skill ini)
 pandoc naskah.md -o naskah.docx --reference-doc=template-kampus.docx
+pandoc naskah.md -o naskah.docx --reference-doc="$env:USERPROFILE\.agents\skills\academic-writing\reference-polos.docx"
+
+# HTML (kalau user minta preview/browser): CSS hitam-putih minimal,
+# heading bold hitam, tanpa warna aksen, font serif akademik
 
 # DOCX -> PDF: buka di Word/LibreOffice, Save as PDF (mesin ini tanpa LaTeX)
 # PDF langsung dari pandoc hanya jika ada pdf-engine (tidak ada di mesin ini)

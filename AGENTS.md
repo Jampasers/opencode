@@ -13,6 +13,7 @@
 ## Workflow
 - Project-level `AGENTS.md` and README override this file on stack details.
 - Start non-trivial work with the `brainstorming` / `writing-plans` skills; run verification before claiming work is done.
+- Before using any package/library, get its latest version and current API via the `context7` MCP tools (`resolve-library-id` → `query-docs`); don't rely on training data for versions or API details.
 <!-- codebase-memory-mcp:start -->
 # Codebase Memory
 

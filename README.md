@@ -59,8 +59,12 @@ No admin rights are required. Everything installs per-user.
 5. Sets `EDITOR=notepad` (user scope).
 6. Validates: required files, JSON/JSONC parse, agents present, plugin present,
    and no machine-specific absolute paths.
-7. Checks `ROUTER_API_KEY` and prints next steps.
-8. Checks the GitHub CLI and installs it via winget when missing. Signing in
+7. Prunes a corrupt OpenCode plugin cache
+   (`%USERPROFILE%\.cache\opencode\packages\@vheins`): a damaged
+   `opencode-9router` package silently removes the provider from `/models`, so
+   setup deletes it and lets OpenCode re-download on the next start.
+8. Checks `ROUTER_API_KEY` and prints next steps.
+9. Checks the GitHub CLI and installs it via winget when missing. Signing in
    (`gh auth login`) is per-machine and deliberately left to you — setup never
    checks or touches authentication.
 

@@ -409,6 +409,37 @@ else {
     [void]$Summary.Next.Add('setx ROUTER_API_KEY "your-key"   then open a NEW terminal')
 }
 
+# --- Plugin cache integrity --------------------------------------------------
+# OpenCode trusts plugin dirs under .cache\opencode\packages. A corrupt
+# @vheins/opencode-9router package imports as a no-op: the 9router provider
+# silently ends up with zero models and disappears from /models, with nothing
+# in the log. Deleting a broken package makes OpenCode re-download it on the
+# next start, which is the confirmed fix for that failure mode.
+Step "Checking OpenCode plugin cache"
+$plugVer = [regex]::Match(
+    (Get-Content -LiteralPath (Join-Path $RepoRoot 'opencode.jsonc') -Raw),
+    '@vheins/opencode-9router@([\d.]+)').Groups[1].Value
+if (-not $plugVer) { throw "opencode.jsonc: pinned @vheins/opencode-9router version not found" }
+$plugDir   = Join-Path $env:USERPROFILE '.cache\opencode\packages\@vheins'
+$plugPkg   = Join-Path $plugDir "opencode-9router@$plugVer"
+$plugEntry = Join-Path $plugPkg 'node_modules\@vheins\opencode-9router\dist\index.js'
+if ((Test-Path -LiteralPath $plugPkg) -and -not (Test-Path -LiteralPath $plugEntry)) {
+    if ($DryRun) { Plan "remove corrupt plugin cache $plugPkg (re-downloaded on next start)" }
+    else {
+        Remove-Item -LiteralPath $plugPkg -Recurse -Force
+        Ok "removed corrupt plugin cache; OpenCode re-downloads it on next start"
+    }
+}
+elseif (Test-Path -LiteralPath $plugPkg) { Ok "plugin cache opencode-9router@$plugVer intact" }
+else { Ok "no plugin cache yet (OpenCode downloads on first start)" }
+foreach ($backup in @(Get-ChildItem -LiteralPath $plugDir -Directory -Filter 'opencode-9router@*.backup' -ErrorAction SilentlyContinue)) {
+    if ($DryRun) { Plan "remove stale plugin cache backup $($backup.Name)" }
+    else { Remove-Item -LiteralPath $backup.FullName -Recurse -Force; Ok "removed stale plugin cache backup $($backup.Name)" }
+}
+# ponytail: only detects missing-entry corruption, not deeper dependency
+# damage; upgrade to verifying the package against the npm registry when that
+# failure mode shows up.
+
 # --- Validation -------------------------------------------------------------
 Step "Validating configuration"
 $valDir = if ($DryRun) { $RepoRoot } else { $ConfigDir }

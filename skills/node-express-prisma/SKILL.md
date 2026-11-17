@@ -1,165 +1,96 @@
 ---
 name: node-express-prisma
-description: Express 5 route/controller/DTO pattern, Prisma ORM schema & migration workflow, JWT auth middleware, error handling, class-validator DTO, response envelope format, and testing strategy with Vitest/Supertest. Skill untuk agent @node-developer Node.js Backend Developer.
-version: 1.0.0
-author: opencode-agent-kit
+description: Use when building or reviewing Node.js/TypeScript backends — Express 5 route/controller/service/DTO structure, response envelopes, class-validator DTOs, Prisma schema/migration/transaction workflows, JWT auth and RBAC, centralized error handling, API design (REST resources, repository/service layers, Next.js API routes), N+1 prevention, Redis caching, rate limiting, background jobs, structured logging, and Vitest/Supertest testing.
+origin: merged from node-express-prisma, backend-patterns
 ---
 
-# Node Express Prisma Skill
+# Node Express Prisma
 
-Skill khusus untuk agent `@node-developer` — Node.js Backend Developer. Berisi pattern, kode contoh, dan workflow standar untuk membangun REST API dengan Express 5, Prisma ORM, PostgreSQL, JWT auth, class-validator DTO, response envelope, dan testing Vitest/Supertest.
+Build REST APIs with Express 5, Prisma ORM, PostgreSQL, JWT auth, class-validator DTOs, a single response envelope, and Vitest/Supertest tests. Layer it: routes → middleware (validate/auth) → controllers → services → Prisma.
 
----
+## When to Use
 
-## 1. Project Structure Standar
+- Building a new REST API endpoint
+- Changing the database schema or migrations
+- Implementing auth, authorization, or validation
+- Writing integration/unit tests
+- Refactoring controllers, services, or routes
+- Designing backend structure for Node.js, Express, or Next.js API routes
+
+## Project Structure
 
 ```
 src/
-├── routes/             # Route definition files (*.route.ts)
-├── controllers/        # Controller handlers (*.controller.ts)
-├── dtos/               # Request & Response DTOs (*.dto.ts, *.response.dto.ts)
-├── middlewares/        # Express middlewares (*.middleware.ts)
+├── routes/             # *.route.ts
+├── controllers/        # *.controller.ts
+├── dtos/               # *.dto.ts, *.response.dto.ts
+├── middlewares/        # *.middleware.ts
 ├── services/           # Business logic layer
-├── utils/              # Helpers & utilities (*.util.ts)
-├── prisma/             # Prisma schema & migrations
-│   ├── schema.prisma
-│   └── migrations/
+├── utils/              # *.util.ts
+├── prisma/             # schema.prisma, migrations/
 ├── tests/              # Vitest test files
-├── app.ts              # Express app setup (middleware, routes)
+├── app.ts              # Express app setup
 └── server.ts           # Entry point (listen)
 ```
 
-### File Naming Convention
+| File type | Pattern | Example |
+|-----------|---------|---------|
+| Request DTO | `*.dto.ts` | `create-user.dto.ts` |
+| Response DTO | `*.response.dto.ts` | `user.response.dto.ts` |
+| Controller | `*.controller.ts` | `user.controller.ts` |
+| Route | `*.route.ts` | `user.route.ts` |
+| Middleware | `*.middleware.ts` | `auth.middleware.ts` |
+| Utility | `*.util.ts` | `envelope.util.ts` |
 
-| Tipe File        | Pattern               | Contoh                        |
-|------------------|-----------------------|-------------------------------|
-| Request DTO      | `*.dto.ts`            | `create-user.dto.ts`          |
-| Response DTO     | `*.response.dto.ts`   | `user.response.dto.ts`        |
-| Controller       | `*.controller.ts`     | `user.controller.ts`          |
-| Route            | `*.route.ts`          | `user.route.ts`               |
-| Middleware       | `*.middleware.ts`     | `auth.middleware.ts`          |
-| Utility          | `*.util.ts`           | `envelope.util.ts`            |
+## Response Envelope
 
----
-
-## 2. Response Envelope Format
-
-Semua API response harus melalui satu helper envelope yang konsisten.
-
-### Envelope Utility (`envelope.util.ts`)
+Every API response goes through one helper:
 
 ```typescript
-// Response envelope shape
 export interface ApiResponse<T = unknown> {
   success: boolean
   data: T | null
   message: string
   errors?: Record<string, string[]>
-  meta?: {
-    page?: number
-    limit?: number
-    total?: number
-    totalPages?: number
-  }
+  meta?: { page?: number; limit?: number; total?: number; totalPages?: number }
 }
 
-// Success
 export function success<T>(data: T, message = 'OK'): ApiResponse<T> {
   return { success: true, data, message }
 }
 
-// Success with pagination
-export function paginated<T>(
-  data: T[],
-  meta: { page: number; limit: number; total: number },
-  message = 'OK',
-): ApiResponse<T[]> {
-  return {
-    success: true,
-    data,
-    message,
-    meta: {
-      ...meta,
-      totalPages: Math.ceil(meta.total / meta.limit),
-    },
-  }
+export function paginated<T>(data: T[], meta: { page: number; limit: number; total: number }, message = 'OK'): ApiResponse<T[]> {
+  return { success: true, data, message, meta: { ...meta, totalPages: Math.ceil(meta.total / meta.limit) } }
 }
 
-// Error
-export function error(
-  message: string,
-  errors?: Record<string, string[]>,
-): ApiResponse<null> {
+export function error(message: string, errors?: Record<string, string[]>): ApiResponse<null> {
   return { success: false, data: null, message, errors }
 }
 ```
 
-**Aturan:**
-- `success: true` untuk response sukses
-- `success: false` untuk response error
-- `data` berisi payload atau `null` saat error
-- `message` memberikan konteks
-- `errors` opsional untuk validasi field-level
-- `meta` opsional untuk pagination metadata
+Rules: `success: true/false`; `data` is the payload or `null` on error; `errors` only for field-level validation; `meta` only for pagination.
 
----
-
-## 3. DTO dengan class-validator
-
-### Request DTO (`create-user.dto.ts`)
+## DTOs with class-validator
 
 ```typescript
-import { IsEmail, IsString, MinLength, MaxLength } from 'class-validator'
-
 export class CreateUserDto {
-  @IsString()
-  @MinLength(3)
-  @MaxLength(50)
-  name!: string
-
-  @IsEmail()
-  email!: string
-
-  @IsString()
-  @MinLength(8)
-  password!: string
+  @IsString() @MinLength(3) @MaxLength(50) name!: string
+  @IsEmail() email!: string
+  @IsString() @MinLength(8) password!: string
 }
-```
-
-### Response DTO (`user.response.dto.ts`)
-
-```typescript
-import { Expose, Transform } from 'class-transformer'
 
 export class UserResponseDto {
-  @Expose()
-  id!: string
-
-  @Expose()
-  name!: string
-
-  @Expose()
-  email!: string
-
-  @Expose()
-  createdAt!: Date
-
-  // Jangan expose password
-  @Expose()
-  @Transform(() => undefined)
-  password?: never
+  @Expose() id!: string
+  @Expose() name!: string
+  @Expose() email!: string
+  @Expose() createdAt!: Date
+  @Expose() @Transform(() => undefined) password?: never   // never expose
 }
 ```
 
-### Validation Middleware (`validate.middleware.ts`)
+Validation middleware:
 
 ```typescript
-import { Request, Response, NextFunction } from 'express'
-import { validate, ValidationError } from 'class-validator'
-import { plainToInstance } from 'class-transformer'
-import { error } from '../utils/envelope.util'
-import { ClassConstructor } from 'class-transformer'
-
 export function validateDto(dtoClass: ClassConstructor<unknown>, source: 'body' | 'query' | 'params' = 'body') {
   return async (req: Request, res: Response, next: NextFunction) => {
     const dtoObj = plainToInstance(dtoClass, req[source])
@@ -167,9 +98,7 @@ export function validateDto(dtoClass: ClassConstructor<unknown>, source: 'body' 
 
     if (errors.length > 0) {
       const formatted: Record<string, string[]> = {}
-      for (const err of errors) {
-        formatted[err.property!] = Object.values(err.constraints!)
-      }
+      for (const err of errors) formatted[err.property!] = Object.values(err.constraints!)
       return res.status(400).json(error('Validation failed', formatted))
     }
 
@@ -179,47 +108,21 @@ export function validateDto(dtoClass: ClassConstructor<unknown>, source: 'body' 
 }
 ```
 
-### Response DTO Serialization
+Serialize responses with `plainToInstance(UserResponseDto, user, { excludeExtraneousValues: true })`.
+
+## Controller Pattern
+
+Controllers only call services, map responses, and delegate errors.
 
 ```typescript
-import { plainToInstance } from 'class-transformer'
-
-// Dalam controller:
-const userDto = plainToInstance(UserResponseDto, user, {
-  excludeExtraneousValues: true,
-})
-```
-
----
-
-## 4. Controller Pattern
-
-### Thin Controller Rule
-
-Controller hanya bertanggung jawab untuk: memanggil service, mapping response, dan error handling.
-
-```typescript
-// user.controller.ts
-import { Request, Response, NextFunction } from 'express'
-import { plainToInstance } from 'class-transformer'
-import { UserService } from '../services/user.service'
-import { UserResponseDto } from '../dtos/user.response.dto'
-import { CreateUserDto } from '../dtos/create-user.dto'
-import { success } from '../utils/envelope.util'
-
-const userService = new UserService()
-
 export class UserController {
   async create(req: Request, res: Response, next: NextFunction) {
     try {
-      const dto = req.body as CreateUserDto
-      const user = await userService.create(dto)
-      const response = plainToInstance(UserResponseDto, user, {
-        excludeExtraneousValues: true,
-      })
+      const user = await userService.create(req.body as CreateUserDto)
+      const response = plainToInstance(UserResponseDto, user, { excludeExtraneousValues: true })
       return res.status(201).json(success(response, 'User created'))
     } catch (err) {
-      next(err) // Delegasikan ke error handler global
+      next(err) // delegate to global error handler
     }
   }
 
@@ -228,10 +131,8 @@ export class UserController {
       const page = Number(req.query.page) || 1
       const limit = Number(req.query.limit) || 10
       const { data, total } = await userService.findAll(page, limit)
-      const response = data.map(u =>
-        plainToInstance(UserResponseDto, u, { excludeExtraneousValues: true }),
-      )
-      return res.status(200).json(success(response, 'Users fetched'))
+      const response = data.map(u => plainToInstance(UserResponseDto, u, { excludeExtraneousValues: true }))
+      return res.status(200).json(paginated(response, { page, limit, total }, 'Users fetched'))
     } catch (err) {
       next(err)
     }
@@ -240,12 +141,8 @@ export class UserController {
   async findById(req: Request, res: Response, next: NextFunction) {
     try {
       const user = await userService.findById(req.params.id)
-      if (!user) {
-        return res.status(404).json(success(null, 'User not found'))
-      }
-      const response = plainToInstance(UserResponseDto, user, {
-        excludeExtraneousValues: true,
-      })
+      if (!user) return res.status(404).json(error('User not found'))
+      const response = plainToInstance(UserResponseDto, user, { excludeExtraneousValues: true })
       return res.status(200).json(success(response, 'User fetched'))
     } catch (err) {
       next(err)
@@ -254,174 +151,86 @@ export class UserController {
 }
 ```
 
----
-
-## 5. Route Registration
-
-### User Route (`user.route.ts`)
+## Route Registration
 
 ```typescript
-import { Router } from 'express'
-import { UserController } from '../controllers/user.controller'
-import { validateDto } from '../middlewares/validate.middleware'
-import { authMiddleware } from '../middlewares/auth.middleware'
-import { CreateUserDto } from '../dtos/create-user.dto'
-
 const router = Router()
 const controller = new UserController()
 
-// Public routes
-router.post('/users', validateDto(CreateUserDto), controller.create)
-
-// Protected routes
-router.get('/users', authMiddleware, controller.findAll)
+router.post('/users', validateDto(CreateUserDto), controller.create)          // public
+router.get('/users', authMiddleware, controller.findAll)                       // protected
 router.get('/users/:id', authMiddleware, controller.findById)
-
 export default router
 ```
 
-**Aturan Routing:**
-1. Tempatkan `explicit routes` sebelum `parameterized routes`
-2. Auth middleware ditempatkan sebelum handler
-3. Validation middleware dipasang per route
-4. Route registration harus eksplisit dan readable
+Rules: explicit routes before parameterized routes; auth middleware before handlers; validation middleware per route; keep registration explicit and readable.
 
----
-
-## 6. App Setup (`app.ts`)
+## App & Server Setup
 
 ```typescript
-import express from 'express'
-import { errorHandler } from './middlewares/error.middleware'
-import userRoutes from './routes/user.route'
-
 const app = express()
-
 app.use(express.json())
-
-// Routes
 app.use('/api/v1', userRoutes)
-
-// Global error handler (harus setelah routes)
-app.use(errorHandler)
-
+app.use(errorHandler)   // must be after routes
 export default app
 ```
 
-### Server Entry (`server.ts`)
-
 ```typescript
-import app from './app'
-import { PrismaClient } from '@prisma/client'
-
 const prisma = new PrismaClient()
 const PORT = process.env.PORT || 3000
 
 async function main() {
   await prisma.$connect()
-  app.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`)
-  })
+  app.listen(PORT, () => console.log(`Server running on port ${PORT}`))
 }
-
-main().catch((e) => {
-  console.error(e)
-  process.exit(1)
-})
-
-export { prisma }
+main().catch((e) => { console.error(e); process.exit(1) })
 ```
 
----
-
-## 7. Global Error Handler (`error.middleware.ts`)
+## Global Error Handler
 
 ```typescript
-import { Request, Response, NextFunction } from 'express'
-import { error } from '../utils/envelope.util'
-
-// Custom error class
 export class AppError extends Error {
-  constructor(
-    public statusCode: number,
-    public override message: string,
-    public errors?: Record<string, string[]>,
-  ) {
+  constructor(public statusCode: number, public override message: string, public errors?: Record<string, string[]>) {
     super(message)
   }
 }
 
-// Global error handler middleware
-export function errorHandler(
-  err: Error,
-  _req: Request,
-  res: Response,
-  _next: NextFunction,
-) {
+export function errorHandler(err: Error, _req: Request, res: Response, _next: NextFunction) {
   console.error('[ErrorHandler]', err)
 
-  if (err instanceof AppError) {
-    return res
-      .status(err.statusCode)
-      .json(error(err.message, err.errors))
-  }
+  if (err instanceof AppError) return res.status(err.statusCode).json(error(err.message, err.errors))
 
-  // Prisma known errors
   if (err.constructor?.name === 'PrismaClientKnownRequestError') {
     const prismaErr = err as any
-    if (prismaErr.code === 'P2002') {
-      return res.status(409).json(error('Resource already exists'))
-    }
-    if (prismaErr.code === 'P2025') {
-      return res.status(404).json(error('Resource not found'))
-    }
+    if (prismaErr.code === 'P2002') return res.status(409).json(error('Resource already exists'))
+    if (prismaErr.code === 'P2025') return res.status(404).json(error('Resource not found'))
   }
 
-  // Fallback — jangan bocorkan detail error ke client
-  return res.status(500).json(error('Internal server error'))
+  // If using Zod: return 400 with error.errors
+
+  return res.status(500).json(error('Internal server error'))   // never leak details
 }
 ```
 
----
-
-## 8. JWT Auth Middleware (`auth.middleware.ts`)
+## JWT Auth
 
 ```typescript
-import { Request, Response, NextFunction } from 'express'
-import jwt from 'jsonwebtoken'
-import { error } from '../utils/envelope.util'
-import { AppError } from './error.middleware'
+export interface JwtPayload { userId: string; email: string; role: string }
 
-export interface JwtPayload {
-  userId: string
-  email: string
-  role: string
-}
-
-// Extend Express Request
 declare global {
   namespace Express {
-    interface Request {
-      user?: JwtPayload
-    }
+    interface Request { user?: JwtPayload }
   }
 }
 
 export function authMiddleware(req: Request, _res: Response, next: NextFunction) {
   const authHeader = req.headers.authorization
-
-  if (!authHeader?.startsWith('Bearer ')) {
-    throw new AppError(401, 'Missing or invalid authorization header')
-  }
-
-  const token = authHeader.split(' ')[1]
+  if (!authHeader?.startsWith('Bearer ')) throw new AppError(401, 'Missing or invalid authorization header')
 
   try {
     const secret = process.env.JWT_SECRET
     if (!secret) throw new Error('JWT_SECRET not configured')
-
-    const decoded = jwt.verify(token, secret) as JwtPayload
-    req.user = decoded
+    req.user = jwt.verify(authHeader.split(' ')[1], secret) as JwtPayload
     next()
   } catch (err) {
     if (err instanceof AppError) throw err
@@ -429,60 +238,42 @@ export function authMiddleware(req: Request, _res: Response, next: NextFunction)
   }
 }
 
-// Role-based guard (opsional)
 export function requireRole(...roles: string[]) {
   return (req: Request, _res: Response, next: NextFunction) => {
-    if (!req.user || !roles.includes(req.user.role)) {
-      throw new AppError(403, 'Insufficient permissions')
-    }
+    if (!req.user || !roles.includes(req.user.role)) throw new AppError(403, 'Insufficient permissions')
     next()
   }
 }
-```
 
-### JWT Utility (`jwt.util.ts`)
-
-```typescript
-import jwt from 'jsonwebtoken'
-import type { JwtPayload } from '../middlewares/auth.middleware'
-
+// jwt.util.ts
 export function generateToken(payload: Omit<JwtPayload, 'iat' | 'exp'>): string {
   const secret = process.env.JWT_SECRET
   if (!secret) throw new Error('JWT_SECRET not configured')
-
   return jwt.sign(payload, secret, { expiresIn: '7d' })
-}
-
-export function verifyToken(token: string): JwtPayload {
-  const secret = process.env.JWT_SECRET
-  if (!secret) throw new Error('JWT_SECRET not configured')
-
-  return jwt.verify(token, secret) as JwtPayload
 }
 ```
 
-**Security Checklist:**
-- JWT_SECRET harus dari environment variable, jangan hardcoded
-- Token expiry wajib (default: 7d)
-- Gunakan `Bearer` scheme di Authorization header
-- Jangan expose error detail invalid token ke client
-- Role guard dipasang setelah authMiddleware
+RBAC with a permission map (when roles are not enough):
 
----
+```typescript
+type Permission = 'read' | 'write' | 'delete' | 'admin'
+const rolePermissions: Record<User['role'], Permission[]> = {
+  admin: ['read', 'write', 'delete', 'admin'],
+  moderator: ['read', 'write', 'delete'],
+  user: ['read', 'write'],
+}
+export function hasPermission(user: User, permission: Permission): boolean {
+  return rolePermissions[user.role].includes(permission)
+}
+```
 
-## 9. Prisma ORM — Schema & Migration Workflow
+Security checklist: `JWT_SECRET` from env only; token expiry required (default 7d); `Bearer` scheme; don't expose invalid-token details; role guard after `authMiddleware`.
 
-### Schema (`prisma/schema.prisma`)
+## Prisma Schema & Migration Workflow
 
 ```prisma
-generator client {
-  provider = "prisma-client-js"
-}
-
-datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
-}
+generator client { provider = "prisma-client-js" }
+datasource db { provider = "postgresql"; url = env("DATABASE_URL") }
 
 model User {
   id        String   @id @default(uuid())
@@ -492,48 +283,26 @@ model User {
   role      String   @default("user")
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-
   @@map("users")
 }
 ```
 
-### Migration Workflow
-
 ```bash
-# 1. Buat migration baru
-npx prisma migrate dev --name add_user_table
-
-# 2. Apply migration ke production
-npx prisma migrate deploy
-
-# 3. Regenerate Prisma Client setelah schema berubah
-npx prisma generate
-
-# 4. Reset database (development only)
-npx prisma migrate reset
-
-# 5. Seed database
+npx prisma migrate dev --name add_user_table   # create + apply (dev)
+npx prisma migrate deploy                       # apply to production
+npx prisma generate                             # regenerate client
+npx prisma migrate reset                        # development only, destructive
 npx prisma db seed
 ```
 
-### Prisma Service Pattern (`services/user.service.ts`)
+Service pattern with Prisma:
 
 ```typescript
-import { PrismaClient } from '@prisma/client'
-import bcrypt from 'bcrypt'
-import { prisma } from '../server'
-import { CreateUserDto } from '../dtos/create-user.dto'
-
 export class UserService {
   async create(dto: CreateUserDto) {
     const hashedPassword = await bcrypt.hash(dto.password, 12)
-
     return prisma.user.create({
-      data: {
-        name: dto.name,
-        email: dto.email,
-        password: hashedPassword,
-      },
+      data: { name: dto.name, email: dto.email, password: hashedPassword },
       select: { id: true, name: true, email: true, createdAt: true },
     })
   }
@@ -547,322 +316,361 @@ export class UserService {
     return { data, total }
   }
 
-  async findById(id: string) {
-    return prisma.user.findUnique({ where: { id } })
-  }
-
   async findByEmail(email: string) {
     return prisma.user.findUnique({ where: { email } })
   }
 }
-```
 
-### Transaction Pattern
-
-```typescript
-// Multi-step write dalam transaction
+// Multi-step write: atomic
 await prisma.$transaction(async (tx) => {
   const user = await tx.user.create({ data: { ... } })
-  const profile = await tx.profile.create({ data: { userId: user.id, ... } })
+  await tx.profile.create({ data: { userId: user.id, ... } })
   return user
 })
 ```
 
-**Aturan Database:**
-- Gunakan atomic writes untuk consistency-critical operations
-- Query hanya relasi dan field yang dibutuhkan (gunakan `select` atau `include` eksplisit)
-- Hindari hidden N+1 queries
-- Gunakan transaction untuk multi-step writes
-- Index kolom yang sering difilter
+Database rules: atomic writes for consistency-critical operations; query only needed relations/fields (`select`/`include` explicitly); avoid hidden N+1; use transactions for multi-step writes; index frequently filtered columns.
 
----
-
-## 10. Authentication / Login Endpoint
-
-### Auth Route (`auth.route.ts`)
+## Authentication Endpoint
 
 ```typescript
-import { Router } from 'express'
-import { AuthController } from '../controllers/auth.controller'
-import { validateDto } from '../middlewares/validate.middleware'
-import { LoginDto } from '../dtos/login.dto'
-
-const router = Router()
-const controller = new AuthController()
-
 router.post('/auth/login', validateDto(LoginDto), controller.login)
 router.post('/auth/register', validateDto(CreateUserDto), controller.register)
-
-export default router
-```
-
-### Login DTO (`login.dto.ts`)
-
-```typescript
-import { IsEmail, IsString } from 'class-validator'
-
-export class LoginDto {
-  @IsEmail()
-  email!: string
-
-  @IsString()
-  password!: string
-}
-```
-
-### Auth Controller (`auth.controller.ts`)
-
-```typescript
-import { Request, Response, NextFunction } from 'express'
-import bcrypt from 'bcrypt'
-import { UserService } from '../services/user.service'
-import { generateToken } from '../utils/jwt.util'
-import { LoginDto } from '../dtos/login.dto'
-import { success, error } from '../utils/envelope.util'
-import { AppError } from '../middlewares/error.middleware'
-
-const userService = new UserService()
 
 export class AuthController {
   async login(req: Request, res: Response, next: NextFunction) {
     try {
       const { email, password } = req.body as LoginDto
       const user = await userService.findByEmail(email)
-
       if (!user || !(await bcrypt.compare(password, user.password))) {
         throw new AppError(401, 'Invalid email or password')
       }
-
-      const token = generateToken({
-        userId: user.id,
-        email: user.email,
-        role: user.role,
-      })
-
+      const token = generateToken({ userId: user.id, email: user.email, role: user.role })
       return res.status(200).json(success({ token, userId: user.id }, 'Login successful'))
     } catch (err) {
       next(err)
     }
   }
+}
+```
 
-  async register(req: Request, res: Response, next: NextFunction) {
-    try {
-      const user = await userService.create(req.body)
-      const token = generateToken({
-        userId: user.id,
-        email: user.email,
-        role: 'user',
-      })
-      return res.status(201).json(success({ token, userId: user.id }, 'Registration successful'))
-    } catch (err) {
-      next(err)
-    }
+## API Design Patterns
+
+### RESTful Resource URLs
+
+```text
+GET    /api/markets                 # List
+GET    /api/markets/:id             # Get one
+POST   /api/markets                 # Create
+PUT    /api/markets/:id             # Replace
+PATCH  /api/markets/:id             # Update
+DELETE /api/markets/:id             # Delete
+
+GET /api/markets?status=active&sort=volume&limit=20&offset=0   # filter/sort/paginate
+```
+
+### Repository Pattern (TypeScript)
+
+Abstract data access so services stay testable:
+
+```typescript
+interface MarketRepository {
+  findAll(filters?: MarketFilters): Promise<Market[]>
+  findById(id: string): Promise<Market | null>
+  create(data: CreateMarketDto): Promise<Market>
+  update(id: string, data: UpdateMarketDto): Promise<Market>
+  delete(id: string): Promise<void>
+}
+
+class PrismaMarketRepository implements MarketRepository {
+  async findAll(filters?: MarketFilters): Promise<Market[]> {
+    return prisma.market.findMany({
+      where: { status: filters?.status },
+      take: filters?.limit,
+    })
+  }
+}
+
+class MarketService {
+  constructor(private marketRepo: MarketRepository) {}
+  async searchMarkets(query: string, limit = 10): Promise<Market[]> {
+    const results = await this.vectorSearch(await generateEmbedding(query), limit)
+    const markets = await this.marketRepo.findByIds(results.map(r => r.id))
+    return markets.sort((a, b) => score(a, results) - score(b, results))
   }
 }
 ```
 
----
-
-## 11. Testing dengan Vitest + Supertest
-
-### Setup Test (`vitest.config.ts`)
+## Database Optimization
 
 ```typescript
-import { defineConfig } from 'vitest/config'
+// GOOD: select only needed columns
+await prisma.market.findMany({
+  where: { status: 'active' },
+  select: { id: true, name: true, status: true, volume: true },
+  orderBy: { volume: 'desc' },
+  take: 10,
+})
 
+// BAD: select everything
+await prisma.market.findMany()
+
+// N+1 fix: batch fetch instead of per-row queries
+const markets = await getMarkets()
+const creatorIds = markets.map(m => m.creator_id)
+const creators = await getUsers(creatorIds)          // one query
+const creatorMap = new Map(creators.map(c => [c.id, c]))
+markets.forEach(m => { m.creator = creatorMap.get(m.creator_id) })
+```
+
+Multi-step atomic write via a database function (Supabase RPC style, when the app layer cannot transact):
+
+```sql
+CREATE OR REPLACE FUNCTION create_market_with_position(market_data jsonb, position_data jsonb)
+RETURNS jsonb LANGUAGE plpgsql AS $$
+BEGIN
+  INSERT INTO markets VALUES (market_data);
+  INSERT INTO positions VALUES (position_data);
+  RETURN jsonb_build_object('success', true);
+EXCEPTION WHEN OTHERS THEN
+  RETURN jsonb_build_object('success', false, 'error', SQLERRM);
+END;
+$$;
+```
+
+## Caching (Redis Cache-Aside)
+
+```typescript
+class CachedMarketRepository implements MarketRepository {
+  constructor(private baseRepo: MarketRepository, private redis: RedisClient) {}
+
+  async findById(id: string): Promise<Market | null> {
+    const cached = await this.redis.get(`market:${id}`)
+    if (cached) return JSON.parse(cached)
+
+    const market = await this.baseRepo.findById(id)
+    if (market) await this.redis.setex(`market:${id}`, 300, JSON.stringify(market))
+    return market
+  }
+
+  async invalidateCache(id: string): Promise<void> {
+    await this.redis.del(`market:${id}`)
+  }
+}
+```
+
+Pattern: check cache → miss → fetch DB → `setex` with TTL → return; invalidate on every write.
+
+## Rate Limiting (In-Memory)
+
+```typescript
+class RateLimiter {
+  private requests = new Map<string, number[]>()
+
+  async checkLimit(identifier: string, maxRequests: number, windowMs: number): Promise<boolean> {
+    const now = Date.now()
+    const recent = (this.requests.get(identifier) || []).filter(t => now - t < windowMs)
+    if (recent.length >= maxRequests) return false
+    recent.push(now)
+    this.requests.set(identifier, recent)
+    return true
+  }
+}
+
+const allowed = await limiter.checkLimit(ip, 100, 60000)   // 100 req/min per IP
+if (!allowed) return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 })
+```
+
+For multi-instance deployments, back the limiter with Redis instead of process memory.
+
+## Background Jobs
+
+```typescript
+class JobQueue<T> {
+  private queue: T[] = []
+  private processing = false
+
+  async add(job: T): Promise<void> {
+    this.queue.push(job)
+    if (!this.processing) this.process()
+  }
+
+  private async process(): Promise<void> {
+    this.processing = true
+    while (this.queue.length > 0) {
+      const job = this.queue.shift()!
+      try { await this.execute(job) } catch (error) { console.error('Job failed:', error) }
+    }
+    this.processing = false
+  }
+
+  private async execute(_job: T): Promise<void> { /* job logic */ }
+}
+```
+
+Return immediately after enqueueing instead of blocking the request.
+
+## Structured Logging
+
+```typescript
+class Logger {
+  log(level: 'info' | 'warn' | 'error', message: string, context?: Record<string, unknown>) {
+    console.log(JSON.stringify({ timestamp: new Date().toISOString(), level, message, ...context }))
+  }
+  info(message: string, context?: Record<string, unknown>) { this.log('info', message, context) }
+  warn(message: string, context?: Record<string, unknown>) { this.log('warn', message, context) }
+  error(message: string, error: Error, context?: Record<string, unknown>) {
+    this.log('error', message, { ...context, error: error.message, stack: error.stack })
+  }
+}
+```
+
+Include a `requestId` (`crypto.randomUUID()`) per request; log unexpected errors with stack, respond generically.
+
+## Retry with Exponential Backoff
+
+```typescript
+async function fetchWithRetry<T>(fn: () => Promise<T>, maxRetries = 3): Promise<T> {
+  let lastError: Error
+  for (let i = 0; i < maxRetries; i++) {
+    try { return await fn() } catch (error) {
+      lastError = error as Error
+      if (i < maxRetries - 1) await new Promise(r => setTimeout(r, Math.pow(2, i) * 1000))
+    }
+  }
+  throw lastError!
+}
+```
+
+## Next.js API Routes
+
+When the backend lives in Next.js route handlers, keep the same envelope and error semantics via higher-order functions:
+
+```typescript
+export function withAuth(handler: NextApiHandler): NextApiHandler {
+  return async (req, res) => {
+    const token = req.headers.authorization?.replace('Bearer ', '')
+    if (!token) return res.status(401).json({ success: false, error: 'Unauthorized' })
+    try {
+      req.user = await verifyToken(token)
+      return handler(req, res)
+    } catch {
+      return res.status(401).json({ success: false, error: 'Invalid token' })
+    }
+  }
+}
+
+export function errorHandler(error: unknown, _request: Request): Response {
+  if (error instanceof ApiError) {
+    return NextResponse.json({ success: false, error: error.message }, { status: error.statusCode })
+  }
+  if (error instanceof z.ZodError) {
+    return NextResponse.json({ success: false, error: 'Validation failed', details: error.errors }, { status: 400 })
+  }
+  console.error('Unexpected error:', error)
+  return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 })
+}
+
+// Usage
+export async function GET(request: Request) {
+  try {
+    const user = await requireAuth(request)
+    return NextResponse.json({ success: true, data: await getDataForUser(user.userId) })
+  } catch (error) {
+    return errorHandler(error, request)
+  }
+}
+```
+
+Health check for deploys: add a `/api/health` route returning `{ status: 'ok', timestamp }`.
+
+## Testing (Vitest + Supertest)
+
+```typescript
+// vitest.config.ts
 export default defineConfig({
-  test: {
-    globals: true,
-    environment: 'node',
-    setupFiles: ['./src/tests/setup.ts'],
-    testTimeout: 15000,
-  },
+  test: { globals: true, environment: 'node', setupFiles: ['./src/tests/setup.ts'], testTimeout: 15000 },
 })
+
+// tests/setup.ts
+beforeAll(async () => { await prisma.$connect() })
+afterEach(async () => { await prisma.user.deleteMany() })
+afterAll(async () => { await prisma.$disconnect() })
 ```
 
-### Test Setup (`tests/setup.ts`)
+Integration test:
 
 ```typescript
-import { PrismaClient } from '@prisma/client'
-import { beforeAll, afterAll, afterEach } from 'vitest'
-
-const prisma = new PrismaClient()
-
-beforeAll(async () => {
-  // Pastikan koneksi database test tersedia
-  await prisma.$connect()
-})
-
-afterEach(async () => {
-  // Bersihkan data test antar test (jika menggunakan database yang sama)
-  await prisma.user.deleteMany()
-})
-
-afterAll(async () => {
-  await prisma.$disconnect()
-})
-
-export { prisma }
-```
-
-### Integration Test (`tests/user.test.ts`)
-
-```typescript
-import { describe, it, expect, beforeAll } from 'vitest'
-import supertest from 'supertest'
-import app from '../app'
-
 const request = supertest(app)
 
 describe('POST /api/v1/users', () => {
-  it('should create a new user', async () => {
-    const res = await request
-      .post('/api/v1/users')
-      .send({
-        name: 'Test User',
-        email: 'test@example.com',
-        password: 'password123',
-      })
+  it('creates a user without leaking the password', async () => {
+    const res = await request.post('/api/v1/users')
+      .send({ name: 'Test User', email: 'test@example.com', password: 'password123' })
 
     expect(res.status).toBe(201)
     expect(res.body.success).toBe(true)
     expect(res.body.data).toHaveProperty('id')
-    expect(res.body.data).toHaveProperty('name', 'Test User')
-    expect(res.body.data).not.toHaveProperty('password') // Response DTO harus exclude
+    expect(res.body.data).not.toHaveProperty('password')
   })
 
-  it('should reject invalid email', async () => {
-    const res = await request
-      .post('/api/v1/users')
-      .send({
-        name: 'Test',
-        email: 'not-an-email',
-        password: 'password123',
-      })
-
+  it('rejects an invalid email', async () => {
+    const res = await request.post('/api/v1/users')
+      .send({ name: 'Test', email: 'not-an-email', password: 'password123' })
     expect(res.status).toBe(400)
-    expect(res.body.success).toBe(false)
     expect(res.body.errors).toBeDefined()
   })
 })
 
 describe('GET /api/v1/users', () => {
-  it('should require auth token', async () => {
-    const res = await request.get('/api/v1/users')
-    expect(res.status).toBe(401)
+  it('requires a token', async () => {
+    expect((await request.get('/api/v1/users')).status).toBe(401)
   })
 
-  it('should return users list with valid token', async () => {
-    // Create user & get token via login
-    const loginRes = await request
-      .post('/api/v1/auth/login')
+  it('returns the list with a valid token', async () => {
+    const login = await request.post('/api/v1/auth/login')
       .send({ email: 'test@example.com', password: 'password123' })
-
-    const token = loginRes.body.data.token
-
-    const res = await request
-      .get('/api/v1/users')
-      .set('Authorization', `Bearer ${token}`)
-
+    const res = await request.get('/api/v1/users')
+      .set('Authorization', `Bearer ${login.body.data.token}`)
     expect(res.status).toBe(200)
-    expect(res.body.success).toBe(true)
     expect(Array.isArray(res.body.data)).toBe(true)
   })
 })
 ```
 
-### Unit Test — Controller (`tests/controllers/user.controller.test.ts`)
-
-```typescript
-import { describe, it, expect, vi } from 'vitest'
-import { Request, Response, NextFunction } from 'express'
-import { UserController } from '../../controllers/user.controller'
-
-// Mock UserService
-vi.mock('../../services/user.service', () => ({
-  UserService: vi.fn().mockImplementation(() => ({
-    create: vi.fn().mockResolvedValue({
-      id: '1',
-      name: 'Test',
-      email: 'test@test.com',
-      createdAt: new Date(),
-    }),
-  })),
-}))
-
-describe('UserController.create', () => {
-  it('should return 201 on success', async () => {
-    const controller = new UserController()
-    const req = { body: { name: 'Test', email: 'test@test.com', password: 'pw' } } as Request
-    const res = { status: vi.fn().mockReturnThis(), json: vi.fn() } as unknown as Response
-    const next = vi.fn() as NextFunction
-
-    await controller.create(req, res, next)
-
-    expect(res.status).toHaveBeenCalledWith(201)
-    expect(res.json).toHaveBeenCalledWith(
-      expect.objectContaining({ success: true }),
-    )
-  })
-})
-```
-
-### Script Package.json
+Controller unit test: mock the service module with `vi.mock`, pass fake `req`/`res`/`next` objects, assert `res.status` and envelope shape.
 
 ```json
-{
-  "scripts": {
-    "test": "vitest run",
-    "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage",
-    "type-check": "tsc --noEmit"
-  }
+"scripts": {
+  "test": "vitest run",
+  "test:watch": "vitest",
+  "test:coverage": "vitest run --coverage",
+  "type-check": "tsc --noEmit"
 }
 ```
 
-### Test Strategy Summary
+| Layer | Tools | Focus |
+|-------|-------|-------|
+| Unit (Service) | Vitest + mock | Business logic, validation, edge cases |
+| Unit (DTO) | class-validator | Field validation rules |
+| Integration | Vitest + Supertest | Full HTTP request/response cycle |
+| E2E (smoke) | Supertest | Critical paths: login, CRUD, auth guard |
 
-| Layer           | Tools           | Fokus                                    |
-|-----------------|-----------------|------------------------------------------|
-| Unit (Service)  | Vitest + mock   | Business logic, validasi, edge cases     |
-| Unit (DTO)      | class-validator | Validasi rules per field                 |
-| Integration     | Vitest + Supertest | Full HTTP request/response cycle      |
-| E2E (smoke)     | Supertest       | Critical paths: login, CRUD, auth guard  |
+Rules: don't test Prisma queries directly in unit tests — mock the service layer; isolate integration tests (`afterEach` cleanup); test 401 without token and 403 without role; assert the envelope shape (`success`, `data`, `message`).
 
-**Aturan Testing:**
-- Jangan tes Prisma query langsung di unit test — mock service layer
-- Integration test harus isolated: cleanup data antar test (`afterEach`)
-- Test auth guard: pastikan 401 tanpa token, 403 tanpa role yang sesuai
-- Test envelope shape: verifikasi `success`, `data`, `message` field ada
+## Endpoint Addition Workflow
 
----
+1. **DTO**: request DTO (`*.dto.ts`) + response DTO (`*.response.dto.ts`).
+2. **Service**: business logic with Prisma queries.
+3. **Controller**: handler with standardized success/error + `plainToInstance`.
+4. **Route**: register with correct middleware order (validate → auth → handler).
+5. **Test**: add an integration test.
 
-## 12. Endpoint Addition Workflow
+Query/list pattern: parse pagination/filter/sort safely from `req.query`; build deterministic `where`/`orderBy`; query + count in parallel with the same filters; return envelope with pagination metadata.
 
-1. **DTO Layer**: Buat/extend request DTO (`*.dto.ts`) + response DTO (`*.response.dto.ts`)
-2. **Service Layer**: Implement business logic dengan Prisma queries
-3. **Controller Layer**: Implement handler dengan standardized success/error + plainToInstance
-4. **Route Layer**: Register route dengan middleware order yang benar (validate → auth → handler)
-5. **Test Layer**: Tambah integration test di file test yang sesuai
+Mutation pattern: validate the payload; check ownership/authorization; run a transaction for multi-step writes; emit log/audit entries for domain-critical changes; return the mapped response DTO.
 
-### Query/List Pattern
-
-1. Parse pagination/filter/sort secara aman dari `req.query`
-2. Bangun `where`/`orderBy` clause yang deterministic
-3. Query + count dengan filter yang sama (`Promise.all`)
-4. Return envelope dengan pagination metadata
-
-### Mutation Pattern
-
-1. Validasi payload dengan DTO middleware
-2. Cek ownership/authorization
-3. Eksekusi transaction untuk multi-step writes
-4. Emit log/audit entries jika domain-critical
-5. Return mapped response DTO
-
----
-
-## 13. Environment Variables (.env)
+## Environment Variables
 
 ```
 DATABASE_URL=postgresql://user:password@localhost:5432/mydb
@@ -871,81 +679,23 @@ PORT=3000
 NODE_ENV=development
 ```
 
-**Wajib divalidasi di startup server.**
+Validate all of them at startup.
 
----
-
-## 14. Package Dependencies
+## Package Dependencies
 
 ```json
 {
   "dependencies": {
-    "express": "^5.0.0",
-    "@prisma/client": "^5.x",
-    "class-validator": "^0.14.x",
-    "class-transformer": "^0.5.x",
-    "jsonwebtoken": "^9.x",
-    "bcrypt": "^5.x",
-    "reflect-metadata": "^0.2.x"
+    "express": "^5.0.0", "@prisma/client": "^5.x",
+    "class-validator": "^0.14.x", "class-transformer": "^0.5.x",
+    "jsonwebtoken": "^9.x", "bcrypt": "^5.x", "reflect-metadata": "^0.2.x"
   },
   "devDependencies": {
-    "typescript": "^5.x",
-    "prisma": "^5.x",
-    "vitest": "^1.x",
-    "supertest": "^6.x",
-    "@types/express": "^5.x",
-    "@types/jsonwebtoken": "^9.x",
-    "@types/bcrypt": "^5.x",
-    "@types/supertest": "^6.x",
-    "tsx": "^4.x"
+    "typescript": "^5.x", "prisma": "^5.x", "vitest": "^1.x", "supertest": "^6.x",
+    "@types/express": "^5.x", "@types/jsonwebtoken": "^9.x",
+    "@types/bcrypt": "^5.x", "@types/supertest": "^6.x", "tsx": "^4.x"
   }
 }
 ```
 
----
-
-## 15. TypeScript Config (`tsconfig.json`)
-
-```json
-{
-  "compilerOptions": {
-    "target": "ES2022",
-    "module": "commonjs",
-    "lib": ["ES2022"],
-    "outDir": "./dist",
-    "rootDir": "./src",
-    "strict": true,
-    "esModuleInterop": true,
-    "experimentalDecorators": true,
-    "emitDecoratorMetadata": true,
-    "resolveJsonModule": true,
-    "skipLibCheck": true,
-    "forceConsistentCasingInFileNames": true,
-    "moduleResolution": "node",
-    "sourceMap": true,
-    "declaration": true,
-    "declarationMap": true
-  },
-  "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist"]
-}
-```
-
----
-
-## Integration dengan Agent @node-developer
-
-Skill ini dipanggil oleh agent `@node-developer` (Node.js Backend Developer) saat:
-
-- Membangun endpoint REST API baru
-- Melakukan perubahan schema database
-- Implementasi auth & authorization
-- Menulis integration/unit tests
-- Refactor controller/service/route
-
-**Pastikan konsisten dengan agent conventions:**
-- File naming: `*.dto.ts`, `*.controller.ts`, `*.route.ts`
-- Response envelope: `success()`, `paginated()`, `error()`
-- Error handling: `AppError` + global `errorHandler`
-- Validation: `validateDto()` middleware di route level
-- Testing: `vitest` + `supertest` untuk integration test
+TypeScript config essentials: `"target": "ES2022"`, `"strict": true`, `"experimentalDecorators": true`, `"emitDecoratorMetadata": true`, `"esModuleInterop": true`, `"moduleResolution": "node"`.

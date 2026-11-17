@@ -1,12 +1,12 @@
 ---
 name: react-performance
-description: React and Next.js performance optimization patterns adapted from Vercel Engineering's React Best Practices (https://github.com/vercel-labs/agent-skills). Organizes 70+ rules across 8 priority categories — waterfalls, bundle size, server-side, client fetching, re-render, rendering, JS micro-perf, advanced. Use when writing, reviewing, or refactoring React/Next.js code for performance.
-origin: ECC
+description: Use when writing, reviewing, or refactoring React/Next.js code for performance; diagnosing slow page loads, slow interactions, or high client CPU; auditing bundle size or Core Web Vitals regressions; removing waterfalls in Server Components or API routes; reducing client-side re-renders; optimizing long lists, animations, or hydration; or choosing data-fetching, RSC, and rendering approaches in React components and Next.js pages.
+origin: merged from react-performance, vercel-react-best-practices
 ---
 
 # React Performance
 
-Performance optimization patterns for React 18/19 and Next.js, adapted from [Vercel Labs `react-best-practices`](https://github.com/vercel-labs/agent-skills/tree/main/skills/react-best-practices) (MIT, v1.0.0). This skill organizes rules by priority and provides decision-tree guidance for active code review and refactoring.
+Performance optimization patterns for React 18/19 and Next.js, derived from Vercel Engineering's `react-best-practices` (MIT, v1.0.0). Rules are organized into 8 priority categories with decision-tree guidance for active code review and refactoring.
 
 ## When to Activate
 
@@ -100,9 +100,11 @@ if (profile.private) return null;
 const [user, posts] = await Promise.all([userP, postsP]);
 ```
 
+For fine-grained dependency tracking across API routes, `better-all` (`all()` from the `better-all` package) resolves each promise as soon as its own dependencies complete. In API routes: start promises early, await late.
+
 ### Suspense for streaming
 
-Push `<Suspense>` boundaries close to the data so the page paints what it can while slower sub-trees stream in. The trade-off: layout shift when content arrives — reserve space (skeleton or `min-height`).
+Push `<Suspense>` boundaries close to the data (`async-suspense-boundaries`) so the page paints what it can while slower sub-trees stream in. The trade-off: layout shift when content arrives — reserve space (skeleton or `min-height`).
 
 ### Server Components: parallel through composition
 
@@ -539,6 +541,21 @@ function useLatest<T>(value: T) {
 }
 ```
 
+## Rule Reference (per-rule files and compiled guide)
+
+Per-rule files with extended explanations live in `rules/` (e.g. `rules/async-parallel.md`); each contains why it matters, an incorrect example, and a correct example. The full compiled guide is `AGENTS.md` in this skill directory.
+
+| Category | Rule IDs |
+|---|---|
+| Eliminating Waterfalls | `async-defer-await`, `async-parallel`, `async-dependencies`, `async-api-routes`, `async-suspense-boundaries` |
+| Bundle Size | `bundle-barrel-imports`, `bundle-dynamic-imports`, `bundle-defer-third-party`, `bundle-conditional`, `bundle-preload` |
+| Server-Side | `server-auth-actions`, `server-cache-react`, `server-cache-lru`, `server-dedup-props`, `server-serialization`, `server-parallel-fetching`, `server-after-nonblocking` |
+| Client Fetching | `client-swr-dedup`, `client-event-listeners`, `client-passive-event-listeners`, `client-localstorage-schema` |
+| Re-renders | `rerender-defer-reads`, `rerender-memo`, `rerender-memo-with-default-value`, `rerender-dependencies`, `rerender-derived-state`, `rerender-derived-state-no-effect`, `rerender-functional-setstate`, `rerender-lazy-state-init`, `rerender-simple-expression-in-memo`, `rerender-move-effect-to-event`, `rerender-transitions`, `rerender-use-ref-transient-values` |
+| Rendering | `rendering-animate-svg-wrapper`, `rendering-content-visibility`, `rendering-hoist-jsx`, `rendering-svg-precision`, `rendering-hydration-no-flicker`, `rendering-hydration-suppress-warning`, `rendering-activity`, `rendering-conditional-render`, `rendering-usetransition-loading` |
+| JavaScript | `js-batch-dom-css`, `js-index-maps`, `js-cache-property-access`, `js-cache-function-results`, `js-cache-storage`, `js-combine-iterations`, `js-length-check-first`, `js-early-exit`, `js-hoist-regexp`, `js-min-max-loop`, `js-set-map-lookups`, `js-tosorted-immutable` |
+| Advanced | `advanced-event-handler-refs`, `advanced-init-once`, `advanced-use-latest` |
+
 ## Automated Tools
 
 Many of these rules are now automated:
@@ -562,13 +579,10 @@ When the project ships React Compiler, demote `rerender-*` manual memoization ru
 
 ## Related
 
-- Skills: [react-patterns](../react-patterns/SKILL.md), [react-testing](../react-testing/SKILL.md), [frontend-patterns](../frontend-patterns/SKILL.md), [accessibility](../accessibility/SKILL.md), [nextjs-turbopack](../nextjs-turbopack/SKILL.md)
-- Rules: [rules/react/](../../rules/react/)
+- Skills: [react-patterns](../react-patterns/SKILL.md), [react-testing](../react-testing/SKILL.md), [accessibility](../accessibility/SKILL.md)
 - Agents: `react-reviewer` enforces these rules in code review; `react-build-resolver` handles related build failures
 - Commands: `/react-review`, `/react-build`, `/react-test`
 
 ## Attribution
 
-Adapted from Vercel Labs `react-best-practices` skill (MIT License, copyright Vercel Engineering, v1.0.0 January 2026). Source: [https://github.com/vercel-labs/agent-skills/tree/main/skills/react-best-practices](https://github.com/vercel-labs/agent-skills/tree/main/skills/react-best-practices).
-
-This skill restructures and adapts the original 70-rule catalog into a single navigable reference. For the full original ruleset with extended examples, see the upstream repository.
+Adapted from Vercel Labs `react-best-practices` skill (MIT License, copyright Vercel Engineering, v1.0.0 January 2026). Source: [https://github.com/vercel-labs/agent-skills/tree/main/skills/react-best-practices](https://github.com/vercel-labs/agent-skills/tree/main/skills/react-best-practices). This skill merges the condensed priority-category reference with the original rule catalog (`rules/`, `AGENTS.md`); rule files retain the upstream extended examples.
